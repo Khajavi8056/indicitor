@@ -4,7 +4,7 @@
 //|                                             https://www.mql5.com |
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2024"
-#property version   "2.00"
+#property version   "2.10"
 #property strict
 
 #include <Trade\Trade.mqh>
@@ -20,8 +20,8 @@ input int      BBLength = 20;           // Bollinger Bands Length
 input double   BBMult = 2.0;            // BB Multiplier
 input int      KCLength = 20;           // Keltner Channel Length
 input double   KCMult = 1.5;            // KC Multiplier
-input double   SqzRedThreshold = 0.5;   // Red Threshold
-input double   SqzGreenThreshold = 0.5; // Green Threshold
+input double   SqzRedThreshold = -0.5;  // Red Threshold (منفی)
+input double   SqzGreenThreshold = 0.5; // Green Threshold (مثبت)
 
 input group "Risk Management"
 input double   RiskPercent = 1.0;       // Risk Percentage
@@ -113,6 +113,7 @@ void OnTick()
       {
          Print("نتیجه سیگنال: تایید شد ✓✓✓");
          ExecuteTrade(trendCandle1);
+         MarkTradeOnChart(trendCandle1); // علامت‌گذاری روی چارت
       }
       else
       {
@@ -179,6 +180,24 @@ void ExecuteTrade(int trendDirection)
 }
 
 //+------------------------------------------------------------------+
+//| علامت‌گذاری روی چارت                                            |
+//+------------------------------------------------------------------+
+void MarkTradeOnChart(int trendDirection)
+{
+   string arrowName = "TradeArrow_" + IntegerToString(TimeCurrent());
+   if(trendDirection == 1)
+   {
+      ObjectCreate(0, arrowName, OBJ_ARROW_BUY, 0, TimeCurrent(), iClose(_Symbol, _Period, 1));
+      ObjectSetInteger(0, arrowName, OBJPROP_COLOR, clrGreen);
+   }
+   else
+   {
+      ObjectCreate(0, arrowName, OBJ_ARROW_SELL, 0, TimeCurrent(), iClose(_Symbol, _Period, 1));
+      ObjectSetInteger(0, arrowName, OBJPROP_COLOR, clrRed);
+   }
+}
+
+//+------------------------------------------------------------------+
 //| مدیریت خروج                                                     |
 //+------------------------------------------------------------------+
 void CheckForExit()
@@ -204,9 +223,9 @@ string GetColorName(int colorCode)
    switch(colorCode)
    {
       case 0: return "سبز تیره";
-      case 1: return "سبز";
+      case 1: return "سبز روشن";
       case 2: return "قرمز تیره";
-      case 3: return "قرمز";
+      case 3: return "قرمز روشن";
       default: return "نامشخص";
    }
 }
