@@ -4,14 +4,11 @@
 //|                                             https://www.mql5.com |
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2024"
-#property version   "3.00"
+#property version   "2.00"
 #property strict
 
 #include <Trade\Trade.mqh>
-#include <ChartObjects\ChartObjectsTxtControls.mqh>
-
 CTrade Trade;
-ChartObjectLabel lblTrend, lblSqueeze;
 
 //--- پارامترهای ورودی
 input group "SuperTrend"
@@ -31,12 +28,6 @@ input double   RiskPercent = 1.0;       // Risk Percentage
 input double   RRRatio = 2.0;           // Risk/Reward Ratio
 input int      MaxSpread = 20;          // Max Spread (points)
 
-input group "Display Settings"
-input string   FontFace = "Arial";      // Font Name
-input int      FontSize = 10;           // Font Size
-input color    TrendColor = clrWhite;   // Trend Text Color
-input color    SqueezeColor = clrWhite; // Squeeze Text Color
-
 //--- متغیرهای سراسری
 int    SuperTrendHandle, SqueezeHandle;
 double SuperTrendBuffer0[], SuperTrendBuffer1[], SuperTrendBuffer2[];
@@ -49,28 +40,22 @@ int      CurrentTrend = -1; // -1=تعریف نشده, 0=نزولی, 1=صعود�
 //+------------------------------------------------------------------+
 int OnInit()
 {
-   // بارگذاری اندیکاتورها
    SuperTrendHandle = iCustom(_Symbol, _Period, "SuperTrend", ATRPeriod, ATRMultiplier);
    SqueezeHandle = iCustom(_Symbol, _Period, "SqueezeMomentumIndicator", BBLength, BBMult, KCLength, KCMult, PRICE_CLOSE);
    
-   // تنظیم آرایه‌ها به صورت سری زمانی
    ArraySetAsSeries(SuperTrendBuffer0, true);
    ArraySetAsSeries(SuperTrendBuffer1, true);
    ArraySetAsSeries(SuperTrendBuffer2, true);
    ArraySetAsSeries(SqueezeHisto, true);
    ArraySetAsSeries(SqueezeColors, true);
    
-   // بررسی خطاهای اندیکاتورها
    if(SuperTrendHandle == INVALID_HANDLE || SqueezeHandle == INVALID_HANDLE)
    {
       Alert("خطا در بارگذاری اندیکاتورها!");
       return(INIT_FAILED);
    }
    
-   // تنظیمات اولیه
    Trade.SetExpertMagicNumber(12345);
-   InitializeChartLabels();
-   
    Print("======================= شروع ربات =======================");
    Print("اندیکاتور 1: SuperTrend → تایید شد");
    Print("اندیکاتور 2: Squeeze Momentum → تایید شد");
@@ -79,26 +64,22 @@ int OnInit()
 }
 
 //+------------------------------------------------------------------+
-//| تابع دینی                                                       |
-//+------------------------------------------------------------------+
-void OnDeinit(const int reason)
-{
-   lblTrend.Delete();
-   lblSqueeze.Delete();
-}
-
-//+------------------------------------------------------------------+
 //| تابع تیک                                                        |
 //+------------------------------------------------------------------+
 void OnTick()
 {
-   // بروزرسانی داده‌ها و نمایش وضعیت
-   UpdateChartLabels();
-   
    if(!IsNewBar()) return;
    
-   // دریافت داده‌های اندیکاتورها
-   if(!RefreshIndicatorData()) return;
+   // بروزرسانی داده‌ها
+   if(CopyBuffer(SuperTrendHandle, 0, 0, 3, SuperTrendBuffer0) != 3 ||
+      CopyBuffer(SuperTrendHandle, 1, 0, 3, SuperTrendBuffer1) != 3 ||
+      CopyBuffer(SuperTrendHandle, 2, 0, 3, SuperTrendBuffer2) != 3 ||
+      CopyBuffer(SqueezeHandle, 0, 0, 3, SqueezeHisto) != 3 ||
+      CopyBuffer(SqueezeHandle, 1, 0, 3, SqueezeColors) != 3)
+   {
+      Print("خطا در دریافت داده‌ها!");
+      return;
+   }
 
    // تشخیص تغییر روند
    int trendCandle2 = GetTrendDirection(2); // کندل قبلی
@@ -106,8 +87,65 @@ void OnTick()
    
    if(trendCandle1 != trendCandle2)
    {
-      ProcessSignal(trendCandle1, trendCandle2);
+      string trendStr = (trendCandle1 == 1) ? "صعودی ▲" : "نزولی ▼";
+      string timeStr = TimeToString(TimeCurrent(), TIME_DATE|TIME_MINUTES);
+      Print("====================== سیگنال یابی =====================");
+      PrintFormat("تغییر روند: تایید شد در %s | قیمت بسته‌شدن: %.5f", timeStr, iClose(_Symbol, _Period, 1));
+      Print("روند جدید: ", trendStr);
+      
+      // بررسی اسکوییز
+      double sqzValue = SqueezeHisto[1];
+      int    sqzColor = (int)SqueezeColors[1];
+      string colorStr = GetColorName(sqzColor);
+      string thresholdStr = (trendCandle1 == 1) ? 
+                           DoubleToString(SqzRedThreshold, 2) + " (قرمز)" : 
+                           DoubleToString(SqzGreenThreshold, 2) + " (سبز)";
+      
+      PrintFormat("رنگ اسکوییز: %s | مقدار اسکوییز: %s", colorStr, DoubleToString(sqzValue, 2));
+      PrintFormat("مقایسه با آستانه: %s vs %s", DoubleToString(sqzValue, 2), thresholdStr);
+
+      // اعتبارسنجی سیگنال
+      bool isSignalValid = false;
+      string reason = "";
+      if(trendCandle1 == 1)
+      {
+         if(sqzColor == 2 && sqzValue <= SqzRedThreshold)
+         {
+            isSignalValid = true;
+         }
+         else
+         {
+            reason = "رنگ اسکوییز قرمز تیره نیست یا مقدار اسکوییز از آستانه بیشتر است.";
+         }
+      }
+      else if(trendCandle1 == 0)
+      {
+         if(sqzColor == 0 && sqzValue >= SqzGreenThreshold)
+         {
+            isSignalValid = true;
+         }
+         else
+         {
+            reason = "رنگ اسکوییز سبز تیره نیست یا مقدار اسکوییز از آستانه کمتر است.";
+         }
+      }
+      
+      if(isSignalValid)
+      {
+         Print("نتیجه سیگنال: تایید شد ✓✓✓");
+         ExecuteTrade(trendCandle1);
+         MarkTradeOnChart(trendCandle1); // علامت‌گذاری روی چارت
+      }
+      else
+      {
+         Print("نتیجه سیگنال: رد شد ✗✗✗");
+         Print("دلیل رد: ", reason);
+      }
+      Print("========================================================");
    }
+   
+   // نمایش اطلاعات روی چارت
+   DisplayInfoOnChart();
    
    // بررسی خروج
    CheckForExit();
@@ -121,85 +159,6 @@ int GetTrendDirection(int shift)
    if(SuperTrendBuffer0[shift] < SuperTrendBuffer1[shift]) return 1; // صعودی
    if(SuperTrendBuffer0[shift] > SuperTrendBuffer1[shift]) return 0; // نزولی
    return -1;
-}
-
-//+------------------------------------------------------------------+
-//| پردازش سیگنال                                                   |
-//+------------------------------------------------------------------+
-void ProcessSignal(int newTrend, int oldTrend)
-{
-   string timeStr = TimeToString(TimeCurrent(), TIME_DATE|TIME_MINUTES);
-   string trendStr = (newTrend == 1) ? "صعودی ▲" : "نزولی ▼";
-   
-   Print("====================== سیگنال یابی =====================");
-   PrintFormat("تغییر روند: %s → %s در %s | قیمت: %.5f", 
-               GetTrendName(oldTrend), trendStr, timeStr, iClose(_Symbol, _Period, 1));
-
-   // بررسی اسکوییز
-   double sqzValue = SqueezeHisto[1];
-   int    sqzColor = (int)SqueezeColors[1];
-   string colorStr = GetColorName(sqzColor);
-   
-   PrintFormat("رنگ اسکوییز: %s | مقدار اسکوییز: %s", colorStr, DoubleToString(sqzValue, 2));
-
-   // اعتبارسنجی سیگنال
-   string rejectionReason = "";
-   bool isSignalValid = ValidateSignal(newTrend, sqzColor, sqzValue, rejectionReason);
-   
-   if(isSignalValid)
-   {
-      Print("نتیجه سیگنال: تایید شد ✓✓✓");
-      ExecuteTrade(newTrend);
-      MarkTradeOnChart(newTrend);
-   }
-   else
-   {
-      PrintFormat("نتیجه سیگنال: رد شد ✗✗✗ | دلیل: %s", rejectionReason);
-   }
-   Print("========================================================");
-}
-
-//+------------------------------------------------------------------+
-//| اعتبارسنجی سیگنال                                               |
-//+------------------------------------------------------------------+
-bool ValidateSignal(int trend, int color, double value, string &reason)
-{
-   // بررسی اسپرد
-   if(SymbolInfoInteger(_Symbol, SYMBOL_SPREAD) > MaxSpread)
-   {
-      reason = "اسپرد بالاتر از حد مجاز";
-      return false;
-   }
-
-   // بررسی شرایط رنگ و آستانه
-   if(trend == 1) // صعودی
-   {
-      if(color != 2) // قرمز تیره
-      {
-         reason = "رنگ اسکوییز قرمز تیره نیست";
-         return false;
-      }
-      if(value > SqzRedThreshold)
-      {
-         reason = "مقدار اسکوییز از آستانه قرمز بالاتر است";
-         return false;
-      }
-   }
-   else if(trend == 0) // نزولی
-   {
-      if(color != 0) // سبز تیره
-      {
-         reason = "رنگ اسکوییز سبز تیره نیست";
-         return false;
-      }
-      if(value < SqzGreenThreshold)
-      {
-         reason = "مقدار اسکوییز از آستانه سبز پایین‌تر است";
-         return false;
-      }
-   }
-   
-   return true;
 }
 
 //+------------------------------------------------------------------+
@@ -224,9 +183,9 @@ void ExecuteTrade(int trendDirection)
                       entryPrice - (slDistance * RRRatio);
    
    // اعتبارسنجی نهایی
-   if(lotSize <= 0)
+   if(lotSize <= 0 || SymbolInfoInteger(_Symbol, SYMBOL_SPREAD) > MaxSpread)
    {
-      Print("خطا: حجم معامله نامعتبر!");
+      Print("خطا در اجرای معامله: حجم نامعتبر یا اسپرد بالا!");
       return;
    }
 
@@ -239,10 +198,48 @@ void ExecuteTrade(int trendDirection)
    
    // لاگ جزئیات
    Print("===================== جزئیات معامله ======================");
-   PrintFormat("ورود به معامله: %s | حجم: %.2f لات", (trendDirection == 1 ? "خرید" : "فروش"), lotSize);
    PrintFormat("استاپ لاس: %.5f | تارگت: %.5f", stopLoss, takeProfit);
-   PrintFormat("فاصله پیپ: SL=%.1f | TP=%.1f", PriceToPips(slDistance), PriceToPips(slDistance * RRRatio));
+   PrintFormat("فاصله پیپ: SL=%.1f pip | TP=%.1f pip", PriceToPips(slDistance), PriceToPips(slDistance * RRRatio));
+   PrintFormat("حجم معامله: %.2f لات | مبلغ ریسک: %.2f $", lotSize, riskAmount);
    Print("========================================================");
+}
+
+//+------------------------------------------------------------------+
+//| علامت‌گذاری روی چارت                                            |
+//+------------------------------------------------------------------+
+void MarkTradeOnChart(int trendDirection)
+{
+   string arrowName = "TradeArrow_" + IntegerToString(TimeCurrent());
+   if(trendDirection == 1)
+   {
+      ObjectCreate(0, arrowName, OBJ_ARROW_BUY, 0, TimeCurrent(), iClose(_Symbol, _Period, 1));
+      ObjectSetInteger(0, arrowName, OBJPROP_COLOR, clrGreen);
+   }
+   else
+   {
+      ObjectCreate(0, arrowName, OBJ_ARROW_SELL, 0, TimeCurrent(), iClose(_Symbol, _Period, 1));
+      ObjectSetInteger(0, arrowName, OBJPROP_COLOR, clrRed);
+   }
+}
+
+//+------------------------------------------------------------------+
+//| نمایش اطلاعات روی چارت                                          |
+//+------------------------------------------------------------------+
+void DisplayInfoOnChart()
+{
+   string trendStr = (CurrentTrend == 1) ? "صعودی ▲" : (CurrentTrend == 0) ? "نزولی ▼" : "نامشخص";
+   string colorStr = GetColorName((int)SqueezeColors[0]);
+   
+   string infoText = "روند فعلی سوپرترند: " + trendStr + "\n" +
+                     "رنگ فعلی اسکوییز: " + colorStr;
+   
+   ObjectDelete(0, "InfoText");
+   ObjectCreate(0, "InfoText", OBJ_LABEL, 0, 0, 0);
+   ObjectSetString(0, "InfoText", OBJPROP_TEXT, infoText);
+   ObjectSetInteger(0, "InfoText", OBJPROP_COLOR, clrWhite);
+   ObjectSetInteger(0, "InfoText", OBJPROP_XDISTANCE, 10);
+   ObjectSetInteger(0, "InfoText", OBJPROP_YDISTANCE, 20);
+   ObjectSetInteger(0, "InfoText", OBJPROP_FONTSIZE, 12);
 }
 
 //+------------------------------------------------------------------+
@@ -264,61 +261,8 @@ void CheckForExit()
 }
 
 //+------------------------------------------------------------------+
-//| توابع کمکی پیشرفته                                              |
+//| توابع کمکی                                                      |
 //+------------------------------------------------------------------+
-void InitializeChartLabels()
-{
-   // ایجاد لیبل برای روند
-   lblTrend.Create(0, "lblTrend", 0, 10, 20);
-   lblTrend.Description("روند فعلی: ");
-   lblTrend.Font(FontFace);
-   lblTrend.FontSize(FontSize);
-   lblTrend.Color(TrendColor);
-   
-   // ایجاد لیبل برای اسکوییز
-   lblSqueeze.Create(0, "lblSqueeze", 0, 10, 40);
-   lblSqueeze.Description("وضعیت اسکوییز: ");
-   lblSqueeze.Font(FontFace);
-   lblSqueeze.FontSize(FontSize);
-   lblSqueeze.Color(SqueezeColor);
-}
-
-void UpdateChartLabels()
-{
-   // بروزرسانی متن و رنگ لیبل‌ها
-   string trendText = "روند فعلی: " + GetTrendName(GetTrendDirection(1));
-   string squeezeText = "وضعیت اسکوییز: " + GetColorName((int)SqueezeColors[0]);
-   
-   lblTrend.Description(trendText);
-   lblSqueeze.Description(squeezeText);
-   
-   // تغییر رنگ متن اسکوییز بر اساس رنگ فعلی
-   color squeezeColor = GetSqueezeColor((int)SqueezeColors[0]);
-   lblSqueeze.Color(squeezeColor);
-}
-
-color GetSqueezeColor(int colorCode)
-{
-   switch(colorCode)
-   {
-      case 0: return clrDarkGreen;
-      case 1: return clrLime;
-      case 2: return clrDarkRed;
-      case 3: return clrRed;
-      default: return clrGray;
-   }
-}
-
-string GetTrendName(int trend)
-{
-   switch(trend)
-   {
-      case 1: return "صعودی ▲";
-      case 0: return "نزولی ▼";
-      default: return "نامشخص";
-   }
-}
-
 string GetColorName(int colorCode)
 {
    switch(colorCode)
@@ -346,7 +290,7 @@ double GetPipValue()
    string symbol = _Symbol;
    double pipSize = SymbolInfoDouble(symbol, SYMBOL_POINT);
    if(symbol == "XAUUSD" || symbol == "GOLD")
-      return pipSize * 100; // 1 pip = 1 دلار برای طلا
+      return pipSize * 100; // ارزش هر 0.01 برای طلا = 1 دلار
    return pipSize * 10;
 }
 
@@ -374,29 +318,5 @@ bool IsNewBar()
       return true;
    }
    return false;
-}
-
-bool RefreshIndicatorData()
-{
-   return CopyBuffer(SuperTrendHandle, 0, 0, 3, SuperTrendBuffer0) == 3 &&
-          CopyBuffer(SuperTrendHandle, 1, 0, 3, SuperTrendBuffer1) == 3 &&
-          CopyBuffer(SuperTrendHandle, 2, 0, 3, SuperTrendBuffer2) == 3 &&
-          CopyBuffer(SqueezeHandle, 0, 0, 3, SqueezeHisto) == 3 &&
-          CopyBuffer(SqueezeHandle, 1, 0, 3, SqueezeColors) == 3;
-}
-
-void MarkTradeOnChart(int trendDirection)
-{
-   string arrowName = "TradeArrow_" + IntegerToString(TimeCurrent());
-   if(trendDirection == 1)
-   {
-      ObjectCreate(0, arrowName, OBJ_ARROW_BUY, 0, TimeCurrent(), iClose(_Symbol, _Period, 1));
-      ObjectSetInteger(0, arrowName, OBJPROP_COLOR, clrGreen);
-   }
-   else
-   {
-      ObjectCreate(0, arrowName, OBJ_ARROW_SELL, 0, TimeCurrent(), iClose(_Symbol, _Period, 1));
-      ObjectSetInteger(0, arrowName, OBJPROP_COLOR, clrRed);
-   }
 }
 //+------------------------------------------------------------------+
