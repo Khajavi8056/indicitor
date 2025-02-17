@@ -4,7 +4,7 @@
 //|                                             https://www.mql5.com |
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2024"
-#property version   "2.10"
+#property version   "2.00"
 #property strict
 
 #include <Trade\Trade.mqh>
@@ -106,7 +106,7 @@ void OnTick()
 
       // اعتبارسنجی سیگنال
       bool isSignalValid = false;
-      if(trendCandle1 == 1 && sqzColor == 3 && sqzValue <= SqzRedThreshold) isSignalValid = true; // صعودی + قرمز تیره
+      if(trendCandle1 == 1 && sqzColor == 2 && sqzValue <= SqzRedThreshold) isSignalValid = true; // صعودی + قرمز تیره
       if(trendCandle1 == 0 && sqzColor == 0 && sqzValue >= SqzGreenThreshold) isSignalValid = true; // نزولی + سبز تیره
       
       if(isSignalValid)
