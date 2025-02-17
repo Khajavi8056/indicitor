@@ -90,7 +90,7 @@ void OnTick()
       string trendStr = (trendCandle1 == 1) ? "صعودی ▲" : "نزولی ▼";
       string timeStr = TimeToString(TimeCurrent(), TIME_DATE|TIME_MINUTES);
       Print("====================== سیگنال یابی =====================");
-      PrintFormat("تغییر روند: تایید شد در %s | قیمت بسته‌شدن: %.5f", timeStr, Close[1]);
+      PrintFormat("تغییر روند: تایید شد در %s | قیمت بسته‌شدن: %.5f", timeStr, iClose(_Symbol, _Period, 1));
       Print("روند جدید: ", trendStr);
       
       // بررسی اسکوییز
@@ -98,11 +98,11 @@ void OnTick()
       int    sqzColor = (int)SqueezeColors[1];
       string colorStr = GetColorName(sqzColor);
       string thresholdStr = (trendCandle1 == 1) ? 
-                           FormatDouble(SqzRedThreshold) + " (قرمز)" : 
-                           FormatDouble(SqzGreenThreshold) + " (سبز)";
+                           DoubleToString(SqzRedThreshold, 2) + " (قرمز)" : 
+                           DoubleToString(SqzGreenThreshold, 2) + " (سبز)";
       
-      PrintFormat("رنگ اسکوییز: %s | مقدار اسکوییز: %s", colorStr, FormatDouble(sqzValue));
-      PrintFormat("مقایسه با آستانه: %s vs %s", FormatDouble(sqzValue), thresholdStr);
+      PrintFormat("رنگ اسکوییز: %s | مقدار اسکوییز: %s", colorStr, DoubleToString(sqzValue, 2));
+      PrintFormat("مقایسه با آستانه: %s vs %s", DoubleToString(sqzValue, 2), thresholdStr);
 
       // اعتبارسنجی سیگنال
       bool isSignalValid = false;
@@ -233,11 +233,6 @@ double GetPipValue()
 double PriceToPips(double price)
 {
    return price / GetPipValue();
-}
-
-string FormatDouble(double value)
-{
-   return DoubleToString(value, 2);
 }
 
 void CloseAllPositions()
