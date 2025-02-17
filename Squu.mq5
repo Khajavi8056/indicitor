@@ -4,16 +4,13 @@
 //|                                             https://www.mql5.com |
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2024"
-#property version   "4.00"
+#property version   "3.00"
 #property strict
 
 #include <Trade\Trade.mqh>
 CTrade Trade;
 
 //--- پارامترهای ورودی
-input group "General Settings"
-input ulong    MagicNumber  = 12345;    // Magic Number
-
 input group "SuperTrend"
 input int      ATRPeriod = 10;          // ATR Period
 input double   ATRMultiplier = 3.0;     // ATR Multiplier
@@ -26,6 +23,7 @@ input double   KCMult = 1.5;            // KC Multiplier
 input double   SqzRedThreshold = -0.5;  // آستانه قرمز (منفی)
 input double   SqzGreenThreshold = 0.5; // آستانه سبز (مثبت)
 
+//--- تنظیمات سفارشی بافرهای رنگ‌ها
 input group "Squeeze Color Buffers"
 input int      DarkGreenBuffer = 0;     // بافر سبز تیره
 input int      LightGreenBuffer = 1;    // بافر سبز روشن
@@ -42,6 +40,7 @@ int    SuperTrendHandle, SqueezeHandle;
 double SuperTrendBuffer0[], SuperTrendBuffer1[], SuperTrendBuffer2[];
 double SqueezeHisto[], SqueezeColors[];
 datetime LastBarTime;
+int      CurrentTrend = -1; // -1=تعریف نشده, 0=نزولی, 1=صعودی
 
 //+------------------------------------------------------------------+
 //| تابع اولیه                                                      |
@@ -63,7 +62,7 @@ int OnInit()
       return(INIT_FAILED);
    }
    
-   Trade.SetExpertMagicNumber(MagicNumber);
+   Trade.SetExpertMagicNumber(12345);
    Print("======================= شروع ربات =======================");
    Print("اندیکاتور 1: SuperTrend → تایید شد");
    Print("اندیکاتور 2: Squeeze Momentum → تایید شد");
@@ -259,52 +258,16 @@ void DisplayInfoOnChart()
 //+------------------------------------------------------------------+
 void CheckForExit()
 {
-   bool closeBuy = false;
-   bool closeSell = false;
+   if(PositionsTotal() == 0) return;
    
-   // شرط خروج برای پوزیشن‌های خرید: بافر0 > بافر1 در کندل قبلی
-   if(SuperTrendBuffer0[1] > SuperTrendBuffer1[1]) 
+   int currentTrend = GetTrendDirection(1);
+   if(currentTrend != CurrentTrend)
    {
-      closeBuy = true;
-   }
-   
-   // شرط خروج برای پوزیشن‌های فروش: بافر0 < بافر1 در کندل قبلی
-   if(SuperTrendBuffer0[1] < SuperTrendBuffer1[1]) 
-   {
-      closeSell = true;
-   }
-   
-   // بستن پوزیشن‌ها
-   if(closeBuy || closeSell)
-   {
-      for(int i = PositionsTotal()-1; i >= 0; i--)
-      {
-         ulong ticket = PositionGetTicket(i);
-         if(PositionGetSymbol(i) == _Symbol && PositionGetInteger(POSITION_MAGIC) == MagicNumber)
-         {
-            ENUM_POSITION_TYPE type = (ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE);
-            if((type == POSITION_TYPE_BUY && closeBuy) || (type == POSITION_TYPE_SELL && closeSell))
-            {
-               Trade.PositionClose(ticket);
-            }
-         }
-      }
-      
-      // چاپ لاگ
-      if(closeBuy)
-      {
-         Print("====================== خروج معامله =====================");
-         Print("دلیل خروج: تغییر روند به نزولی ✓");
-         Print("همه پوزیشن‌های خرید بسته شدند");
-         Print("========================================================");
-      }
-      if(closeSell)
-      {
-         Print("====================== خروج معامله =====================");
-         Print("دلیل خروج: تغییر روند به صعودی ✓");
-         Print("همه پوزیشن‌های فروش بسته شدند");
-         Print("========================================================");
-      }
+      CloseAllPositions();
+      Print("====================== خروج معامله =====================");
+      Print("دلیل خروج: تغییر روند ✓");
+      Print("همه پوزیشن‌ها بسته شدند");
+      Print("========================================================");
    }
 }
 
@@ -349,7 +312,7 @@ void CloseAllPositions()
    for(int i = PositionsTotal()-1; i >= 0; i--)
    {
       ulong ticket = PositionGetTicket(i);
-      if(PositionGetSymbol(i) == _Symbol && PositionGetInteger(POSITION_MAGIC) == MagicNumber)
+      if(PositionGetSymbol(i) == _Symbol)
          Trade.PositionClose(ticket);
    }
 }
