@@ -4,7 +4,7 @@
 //|                                             https://www.mql5.com |
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2024"
-#property version   "2.00"
+#property version   "3.00"
 #property strict
 
 #include <Trade\Trade.mqh>
@@ -20,13 +20,20 @@ input int      BBLength = 20;           // Bollinger Bands Length
 input double   BBMult = 2.0;            // BB Multiplier
 input int      KCLength = 20;           // Keltner Channel Length
 input double   KCMult = 1.5;            // KC Multiplier
-input double   SqzRedThreshold = -0.5;  // Red Threshold (منفی)
-input double   SqzGreenThreshold = 0.5; // Green Threshold (مثبت)
+input double   SqzRedThreshold = -0.5;  // آستانه قرمز (منفی)
+input double   SqzGreenThreshold = 0.5; // آستانه سبز (مثبت)
+
+//--- تنظیمات سفارشی بافرهای رنگ‌ها
+input group "Squeeze Color Buffers"
+input int      DarkGreenBuffer = 0;     // بافر سبز تیره
+input int      LightGreenBuffer = 1;    // بافر سبز روشن
+input int      DarkRedBuffer = 2;       // بافر قرمز تیره
+input int      LightRedBuffer = 3;      // بافر قرمز روشن
 
 input group "Risk Management"
-input double   RiskPercent = 1.0;       // Risk Percentage
-input double   RRRatio = 2.0;           // Risk/Reward Ratio
-input int      MaxSpread = 20;          // Max Spread (points)
+input double   RiskPercent = 1.0;       // درصد ریسک
+input double   RRRatio = 2.0;           // نسبت ریسک/پاداش
+input int      MaxSpread = 20;          // حداکثر اسپرد (پیپ)
 
 //--- متغیرهای سراسری
 int    SuperTrendHandle, SqueezeHandle;
@@ -68,9 +75,7 @@ int OnInit()
 //+------------------------------------------------------------------+
 void OnTick()
 {
-   if(!IsNewBar()) return;
-   
-   // بروزرسانی داده‌ها
+   // بروزرسانی داده‌ها در هر تیک
    if(CopyBuffer(SuperTrendHandle, 0, 0, 3, SuperTrendBuffer0) != 3 ||
       CopyBuffer(SuperTrendHandle, 1, 0, 3, SuperTrendBuffer1) != 3 ||
       CopyBuffer(SuperTrendHandle, 2, 0, 3, SuperTrendBuffer2) != 3 ||
@@ -80,6 +85,11 @@ void OnTick()
       Print("خطا در دریافت داده‌ها!");
       return;
    }
+
+   // نمایش اطلاعات روی چارت در هر تیک
+   DisplayInfoOnChart();
+   
+   if(!IsNewBar()) return;
 
    // تشخیص تغییر روند
    int trendCandle2 = GetTrendDirection(2); // کندل قبلی
@@ -107,26 +117,28 @@ void OnTick()
       // اعتبارسنجی سیگنال
       bool isSignalValid = false;
       string reason = "";
-      if(trendCandle1 == 1)
+      if(trendCandle1 == 1) // صعودی
       {
-         if(sqzColor == 2 && sqzValue <= SqzRedThreshold)
+         if(sqzColor == DarkRedBuffer && sqzValue <= SqzRedThreshold)
          {
             isSignalValid = true;
          }
          else
          {
-            reason = "رنگ اسکوییز قرمز تیره نیست یا مقدار اسکوییز از آستانه بیشتر است.";
+            if(sqzColor != DarkRedBuffer) reason += "رنگ اسکوییز قرمز تیره نیست. ";
+            if(sqzValue > SqzRedThreshold) reason += "مقدار اسکوییز از آستانه بیشتر است.";
          }
       }
-      else if(trendCandle1 == 0)
+      else if(trendCandle1 == 0) // نزولی
       {
-         if(sqzColor == 0 && sqzValue >= SqzGreenThreshold)
+         if(sqzColor == DarkGreenBuffer && sqzValue >= SqzGreenThreshold)
          {
             isSignalValid = true;
          }
          else
          {
-            reason = "رنگ اسکوییز سبز تیره نیست یا مقدار اسکوییز از آستانه کمتر است.";
+            if(sqzColor != DarkGreenBuffer) reason += "رنگ اسکوییز سبز تیره نیست. ";
+            if(sqzValue < SqzGreenThreshold) reason += "مقدار اسکوییز از آستانه کمتر است.";
          }
       }
       
@@ -134,18 +146,15 @@ void OnTick()
       {
          Print("نتیجه سیگنال: تایید شد ✓✓✓");
          ExecuteTrade(trendCandle1);
-         MarkTradeOnChart(trendCandle1); // علامت‌گذاری روی چارت
+         MarkTradeOnChart(trendCandle1);
       }
       else
       {
          Print("نتیجه سیگنال: رد شد ✗✗✗");
-         Print("دلیل رد: ", reason);
+         Print("دلیل رد: ", (reason == "" ? "نامشخص" : reason));
       }
       Print("========================================================");
    }
-   
-   // نمایش اطلاعات روی چارت
-   DisplayInfoOnChart();
    
    // بررسی خروج
    CheckForExit();
@@ -227,8 +236,10 @@ void MarkTradeOnChart(int trendDirection)
 //+------------------------------------------------------------------+
 void DisplayInfoOnChart()
 {
-   string trendStr = (CurrentTrend == 1) ? "صعودی ▲" : (CurrentTrend == 0) ? "نزولی ▼" : "نامشخص";
-   string colorStr = GetColorName((int)SqueezeColors[0]);
+   int currentTrend = GetTrendDirection(0); // روند فعلی
+   string trendStr = (currentTrend == 1) ? "صعودی ▲" : (currentTrend == 0) ? "نزولی ▼" : "نامشخص";
+   int currentColor = (int)SqueezeColors[0];
+   string colorStr = GetColorName(currentColor);
    
    string infoText = "روند فعلی سوپرترند: " + trendStr + "\n" +
                      "رنگ فعلی اسکوییز: " + colorStr;
@@ -265,14 +276,11 @@ void CheckForExit()
 //+------------------------------------------------------------------+
 string GetColorName(int colorCode)
 {
-   switch(colorCode)
-   {
-      case 0: return "سبز تیره";
-      case 1: return "سبز روشن";
-      case 2: return "قرمز تیره";
-      case 3: return "قرمز روشن";
-      default: return "نامشخص";
-   }
+   if(colorCode == DarkGreenBuffer) return "سبز تیره";
+   if(colorCode == LightGreenBuffer) return "سبز روشن";
+   if(colorCode == DarkRedBuffer) return "قرمز تیره";
+   if(colorCode == LightRedBuffer) return "قرمز روشن";
+   return "نامشخص";
 }
 
 double NormalizeLotSize(double lots)
