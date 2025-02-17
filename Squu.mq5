@@ -4,7 +4,7 @@
 //|                                             https://www.mql5.com |
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2024"
-#property version   "3.00"
+#property version   "3.10"
 #property strict
 
 #include <Trade\Trade.mqh>
