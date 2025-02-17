@@ -34,6 +34,9 @@ input group "Risk Management"
 input double   RiskPercent = 1.0;       // درصد ریسک
 input double   RRRatio = 2.0;           // نسبت ریسک/پاداش
 input int      MaxSpread = 20;          // حداکثر اسپرد (پیپ)
+input group "Pip Settings"
+input double   InpPipDefinition = 0.01; // تعریف پیپ (مثال: 0.0001 برای EURUSD، 0.01 برای XAUUSD)
+input double   InpPipValue = 10.0;       // ارزش هر پیپ به دلار (مثال: 10 برای EURUSD، 1 برای XAUUSD)
 
 //--- متغیرهای سراسری
 int    SuperTrendHandle, SqueezeHandle;
@@ -179,11 +182,13 @@ void ExecuteTrade(int trendDirection)
    double entryPrice = (trendDirection == 1) ? SymbolInfoDouble(_Symbol, SYMBOL_ASK) : SymbolInfoDouble(_Symbol, SYMBOL_BID);
    double stopLoss = SuperTrendBuffer2[1];
    double slDistance = MathAbs(entryPrice - stopLoss);
-   double pipValue = GetPipValue();
+   
+   // محاسبه فاصله پیپ
+   double distanceInPips = slDistance / InpPipDefinition;
    
    // محاسبه حجم با مدیریت ریسک
    double riskAmount = AccountInfoDouble(ACCOUNT_BALANCE) * (RiskPercent / 100.0);
-   double lotSize = riskAmount / (slDistance * pipValue);
+   double lotSize = riskAmount / (distanceInPips * InpPipValue);
    lotSize = NormalizeLotSize(lotSize);
    
    // محاسبه تارگت
@@ -207,9 +212,11 @@ void ExecuteTrade(int trendDirection)
    
    // لاگ جزئیات
    Print("===================== جزئیات معامله ======================");
+   PrintFormat("مبلغ ریسک: %.2f $", riskAmount);
+   PrintFormat("فاصله تا استاپ: %.1f پیپ", distanceInPips);
+   PrintFormat("فرمول محاسبه: %.2f $ / (%.1f * %.2f $) = %.2f لات", 
+               riskAmount, distanceInPips, InpPipValue, lotSize);
    PrintFormat("استاپ لاس: %.5f | تارگت: %.5f", stopLoss, takeProfit);
-   PrintFormat("فاصله پیپ: SL=%.1f pip | TP=%.1f pip", PriceToPips(slDistance), PriceToPips(slDistance * RRRatio));
-   PrintFormat("حجم معامله: %.2f لات | مبلغ ریسک: %.2f $", lotSize, riskAmount);
    Print("========================================================");
 }
 
