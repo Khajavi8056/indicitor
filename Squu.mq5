@@ -258,18 +258,45 @@ void DisplayInfoOnChart()
 //+------------------------------------------------------------------+
 void CheckForExit()
 {
-   if(PositionsTotal() == 0) return;
-   
-   int currentTrend = GetTrendDirection(1);
-   if(currentTrend != CurrentTrend)
+   for(int i = PositionsTotal()-1; i >= 0; i--)
    {
-      CloseAllPositions();
-      Print("====================== خروج معامله =====================");
-      Print("دلیل خروج: تغییر روند ✓");
-      Print("همه پوزیشن‌ها بسته شدند");
-      Print("========================================================");
+      ulong ticket = PositionGetTicket(i);
+      if(PositionGetSymbol(i) == _Symbol && PositionGetInteger(POSITION_MAGIC) == 12345)
+      {
+         // دریافت اطلاعات پوزیشن
+         ENUM_POSITION_TYPE posType = (ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE);
+         
+         // بررسی شرایط خروج برای هر پوزیشن
+         bool shouldClose = false;
+         
+         // شرط خروج برای پوزیشن‌های BUY
+         if(posType == POSITION_TYPE_BUY)
+         {
+            if(SuperTrendBuffer0[1] > SuperTrendBuffer1[1]) // بافر0 > بافر1 در کندل قبل
+               shouldClose = true;
+         }
+         
+         // شرط خروج برای پوزیشن‌های SELL
+         else if(posType == POSITION_TYPE_SELL)
+         {
+            if(SuperTrendBuffer0[1] < SuperTrendBuffer1[1]) // بافر0 < بافر1 در کندل قبل
+               shouldClose = true;
+         }
+         
+         // اجرای دستور بستن پوزیشن
+         if(shouldClose)
+         {
+            Trade.PositionClose(ticket);
+            Print("====================== خروج معامله =====================");
+            PrintFormat("پوزیشن #%d بسته شد | دلیل: تغییر روند", ticket);
+            Print("========================================================");
+         }
+      }
    }
 }
+
+//+------------------------------------------------------------------+
+//| توابع کمکی                                          
 
 //+------------------------------------------------------------------+
 //| توابع کمکی                                                      |
