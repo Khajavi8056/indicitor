@@ -7,37 +7,38 @@
 #property version   "3.10"
 #property strict
 
+#include "DashboardLibrary.mqh";
+
 #include <Trade\Trade.mqh>
 CTrade Trade;
 
 //--- پارامترهای ورودی
 input group "SuperTrend"
-input int      ATRPeriod = 10;          // ATR Period
-input double   ATRMultiplier = 3.0;     // ATR Multiplier
+input int      ATRPeriod = 20;          // ATR Period
+input double   ATRMultiplier = 2.0;     // ATR Multiplier
 
 input group "Squeeze Momentum"
 input int      BBLength = 20;           // Bollinger Bands Length
 input double   BBMult = 2.0;            // BB Multiplier
 input int      KCLength = 20;           // Keltner Channel Length
 input double   KCMult = 1.5;            // KC Multiplier
-input double   SqzRedThreshold = -0.5;  // آستانه قرمز (منفی)
-input double   SqzGreenThreshold = 0.5; // آستانه سبز (مثبت)
+input double   SqzRedThreshold = -2.9;  // آستانه قرمز (منفی)
+input double   SqzGreenThreshold = 2.9; // آستانه سبز (مثبت)
 
 //--- تنظیمات سفارشی بافرهای رنگ‌ها
-input group "Squeeze Color Buffers"
-input int      DarkGreenBuffer = 0;     // بافر سبز تیره
-input int      LightGreenBuffer = 1;    // بافر سبز روشن
-input int      DarkRedBuffer = 2;       // بافر قرمز تیره
-input int      LightRedBuffer = 3;      // بافر قرمز روشن
+// group "Squeeze Color Buffers"
+ int      DarkGreenBuffer = 1;     // بافر سبز تیره
+ int      LightGreenBuffer = 0;    // بافر سبز روشن
+ int      DarkRedBuffer = 3;       // بافر قرمز تیره
+ int      LightRedBuffer = 2;      // بافر قرمز روشن
 
 input group "Risk Management"
 input double   RiskPercent = 1.0;       // درصد ریسک
-input double   RRRatio = 2.0;           // نسبت ریسک/پاداش
-input int      MaxSpread = 20;          // حداکثر اسپرد (پیپ)
+input double   RRRatio = 3.0;           // نسبت ریسک/پاداش
+input int      MaxSpread = 200;          // حداکثر اسپرد (پیپ)
 input group "Pip Settings"
-input double   InpPipDefinition = 0.01; // تعریف پیپ (مثال: 0.0001 برای EURUSD، 0.01 برای XAUUSD)
-input double   InpPipValue = 10.0;       // ارزش هر پیپ به دلار (مثال: 10 برای EURUSD، 1 برای XAUUSD)
-
+input double   InpPipDefinition = 0.01; // تعریف عدد اعشار که پیپ میگویند)
+input double   InpPipValue = 1.0;       // ارزش هر پیپ به
 //--- متغیرهای سراسری
 int    SuperTrendHandle, SqueezeHandle;
 double SuperTrendBuffer0[], SuperTrendBuffer1[], SuperTrendBuffer2[];
@@ -67,8 +68,8 @@ int OnInit()
    
    Trade.SetExpertMagicNumber(12345);
    Print("======================= شروع ربات =======================");
-   Print("اندیکاتور 1: SuperTrend → تایید شد");
-   Print("اندیکاتور 2: Squeeze Momentum → تایید شد");
+   Print("اندیکاتور 1nd → تایید شد");
+   Print("اندیکاتو2um → تایید شد");
    Print("========================================================");
    return(INIT_SUCCEEDED);
 }
@@ -90,8 +91,8 @@ void OnTick()
    }
 
    // نمایش اطلاعات روی چارت در هر تیک
-   DisplayInfoOnChart();
-   
+ //--- فراخوانی تابع نمایش پنل با ارسال پارامترها
+   DisplayInfoOnChart(RiskPercent, MaxSpread);   
    if(!IsNewBar()) return;
 
    // تشخیص تغییر روند
@@ -241,7 +242,7 @@ void MarkTradeOnChart(int trendDirection)
 //+------------------------------------------------------------------+
 //| نمایش اطلاعات روی چارت                                          |
 //+------------------------------------------------------------------+
-void DisplayInfoOnChart()
+/*void DisplayInfoOnChart()
 {
    int currentTrend = GetTrendDirection(0); // روند فعلی
    string trendStr = (currentTrend == 1) ? "صعودی ▲" : (currentTrend == 0) ? "نزولی ▼" : "نامشخص";
@@ -259,7 +260,7 @@ void DisplayInfoOnChart()
    ObjectSetInteger(0, "InfoText", OBJPROP_YDISTANCE, 20);
    ObjectSetInteger(0, "InfoText", OBJPROP_FONTSIZE, 12);
 }
-
+*/
 //+------------------------------------------------------------------+
 //| مدیریت خروج                                                     |
 //+------------------------------------------------------------------+
